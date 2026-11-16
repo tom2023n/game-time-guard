@@ -258,7 +258,13 @@ public sealed class TrayWatchdog : BackgroundService
 {
     private readonly ILogger<TrayWatchdog> _logger;
 
-    public TrayWatchdog(ILogger<TrayWatchdog> logger) => _logger = logger;
+    private readonly GuardRuntime _runtime;
+
+    public TrayWatchdog(GuardRuntime runtime, ILogger<TrayWatchdog> logger)
+    {
+        _runtime = runtime;
+        _logger = logger;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -266,7 +272,8 @@ public sealed class TrayWatchdog : BackgroundService
         {
             try
             {
-                TrayLauncher.EnsureRunning(GuardPaths.TrayExecutable, _logger);
+                if (_runtime.ShouldLaunchTray())
+                    TrayLauncher.EnsureRunning(GuardPaths.TrayExecutable, _logger);
             }
             catch (Exception ex)
             {

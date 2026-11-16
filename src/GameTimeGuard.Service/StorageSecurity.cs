@@ -15,6 +15,17 @@ internal static class StorageSecurity
         TryProtect(GuardPaths.Root, includeUsersRead: true, logger);
         TryProtect(GuardPaths.Secrets, includeUsersRead: false, logger);
         TryProtect(GuardPaths.Logs, includeUsersRead: true, logger);
+        try
+        {
+            Directory.CreateDirectory(GuardPaths.ShadowRoot);
+            File.SetAttributes(GuardPaths.ShadowRoot, FileAttributes.Hidden | FileAttributes.Directory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogDebug(ex, "隐藏副本目录暂时建不了");
+        }
+
+        TryProtect(GuardPaths.ShadowRoot, includeUsersRead: false, logger);
         TryProtectRegistry(logger);
     }
 
@@ -29,8 +40,13 @@ internal static class StorageSecurity
                 security.RemoveAccessRuleAll(rule);
 
             var inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            security.SetOwner(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
             security.AddAccessRule(Allow(WellKnownSidType.LocalSystemSid, FileSystemRights.FullControl, inherit));
-            security.AddAccessRule(Allow(WellKnownSidType.BuiltinAdministratorsSid, FileSystemRights.FullControl, inherit));
+            security.AddAccessRule(Deny(
+                WellKnownSidType.BuiltinAdministratorsSid,
+                FileSystemRights.Write | FileSystemRights.Delete | FileSystemRights.DeleteSubdirectoriesAndFiles | FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership,
+                inherit));
+            security.AddAccessRule(Allow(WellKnownSidType.BuiltinAdministratorsSid, FileSystemRights.ReadAndExecute, inherit));
             if (includeUsersRead)
             {
                 security.AddAccessRule(Allow(
@@ -48,13 +64,19 @@ internal static class StorageSecurity
     }
 
     private static FileSystemAccessRule Allow(WellKnownSidType sid, FileSystemRights rights, InheritanceFlags inherit)
+        => Rule(sid, rights, inherit, AccessControlType.Allow);
+
+    private static FileSystemAccessRule Deny(WellKnownSidType sid, FileSystemRights rights, InheritanceFlags inherit)
+        => Rule(sid, rights, inherit, AccessControlType.Deny);
+
+    private static FileSystemAccessRule Rule(WellKnownSidType sid, FileSystemRights rights, InheritanceFlags inherit, AccessControlType type)
     {
         return new FileSystemAccessRule(
             new SecurityIdentifier(sid, null),
             rights,
             inherit,
             PropagationFlags.None,
-            AccessControlType.Allow);
+            type);
     }
 
     private static void TryProtectRegistry(ILogger logger)
@@ -67,16 +89,24 @@ internal static class StorageSecurity
             security.SetAccessRuleProtection(true, false);
             foreach (RegistryAccessRule rule in security.GetAccessRules(true, false, typeof(SecurityIdentifier)))
                 security.RemoveAccessRuleAll(rule);
+            var inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            security.SetOwner(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
             security.AddAccessRule(new RegistryAccessRule(
                 new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
                 RegistryRights.FullControl,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                inherit,
                 PropagationFlags.None,
                 AccessControlType.Allow));
             security.AddAccessRule(new RegistryAccessRule(
                 new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                RegistryRights.FullControl,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                RegistryRights.SetValue | RegistryRights.CreateSubKey | RegistryRights.Delete | RegistryRights.ChangePermissions | RegistryRights.TakeOwnership,
+                inherit,
+                PropagationFlags.None,
+                AccessControlType.Deny));
+            security.AddAccessRule(new RegistryAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                RegistryRights.ReadKey,
+                inherit,
                 PropagationFlags.None,
                 AccessControlType.Allow));
             key.SetAccessControl(security);

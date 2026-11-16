@@ -1,6 +1,22 @@
 using GameTimeGuard.Service;
 using Microsoft.Extensions.Logging.Console;
 
+if (args.Contains("--ensure"))
+{
+    using var loggerFactory = LoggerFactory.Create(logging => logging.AddSimpleConsole());
+    WatchdogLoop.Tick(loggerFactory.CreateLogger("GameTimeGuardEnsure"));
+    return;
+}
+
+if (args.Contains("--watchdog"))
+{
+    var watch = Host.CreateApplicationBuilder(args);
+    watch.Services.AddWindowsService(options => options.ServiceName = GuardPaths.WatchServiceName);
+    watch.Services.AddHostedService<WatchdogService>();
+    await watch.Build().RunAsync();
+    return;
+}
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddWindowsService(options => options.ServiceName = "GameTimeGuard");
 builder.Logging.AddSimpleConsole(options =>

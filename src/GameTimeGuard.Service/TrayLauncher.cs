@@ -6,6 +6,28 @@ namespace GameTimeGuard.Service;
 
 internal static class TrayLauncher
 {
+    public static bool AnyInteractiveSession()
+    {
+        if (!WTSEnumerateSessionsW(IntPtr.Zero, 0, 1, out var pointer, out var count))
+            return true;
+        try
+        {
+            var size = Marshal.SizeOf<WtsSessionInfo>();
+            for (var index = 0; index < count; index++)
+            {
+                var info = Marshal.PtrToStructure<WtsSessionInfo>(IntPtr.Add(pointer, index * size));
+                if (info.State == 0 && info.SessionId != 0)
+                    return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            WTSFreeMemory(pointer);
+        }
+    }
+
     public static void EnsureRunning(string exePath, ILogger logger)
     {
         if (!File.Exists(exePath))
