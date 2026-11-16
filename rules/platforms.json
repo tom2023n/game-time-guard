@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "steam",
+      "displayName": "Steam 游戏",
+      "description": "只计算 steamapps\\common 里的游戏，不把常驻后台的 Steam 客户端算进去。改了 exe 名字只要还在这个目录就会命中。",
+      "enabledByDefault": true,
+      "pathContainsAny": ["\\steamapps\\common\\"],
+      "pathNotContainsAny": [],
+      "publishers": [],
+      "publisherAlone": false,
+      "publisherPathNotContainsAny": []
+    },
+    {
+      "id": "wegame",
+      "displayName": "WeGame",
+      "description": "WeGame 客户端以及 WeGameApps 目录中的游戏。腾讯的微信、QQ 不在此列。",
+      "enabledByDefault": true,
+      "pathContainsAny": ["\\WeGameApps\\", "\\WeGame\\"],
+      "pathNotContainsAny": ["\\WeChat\\", "\\微信\\", "\\QQMusic\\", "\\QQBrowser\\"],
+      "publishers": [],
+      "publisherAlone": false,
+      "publisherPathNotContainsAny": []
+    },
+    {
+      "id": "epic",
+      "displayName": "Epic Games",
+      "description": "Epic 安装的游戏。启动器目录除外。若游戏被装到自定义目录，仍可凭 Epic 的数字签名识别。",
+      "enabledByDefault": false,
+      "pathContainsAny": ["\\Epic Games\\", "\\FortniteGame\\", "\\Fortnite\\"],
+      "pathNotContainsAny": ["\\Epic Games\\Launcher\\", "\\EpicGamesLauncher\\"],
+      "publishers": ["Epic Games"],
+      "publisherAlone": true,
+      "publisherPathNotContainsAny": ["\\Epic Games\\Launcher\\", "\\EpicGamesLauncher\\"]
+    },
+    {
+      "id": "battlenet",
+      "displayName": "战网 / 暴雪",
+      "description": "Battle.net 与暴雪游戏。暴雪签名的程序会算作游戏时间，包括战网客户端。",
+      "enabledByDefault": false,
+      "pathContainsAny": ["\\Battle.net\\", "\\Blizzard Entertainment\\", "\\World of Warcraft\\", "\\Overwatch\\", "\\Diablo\\", "\\Hearthstone\\", "\\StarCraft\\", "\\Heroes of the Storm\\", "\\Call of Duty\\"],
+      "pathNotContainsAny": [],
+      "publishers": ["Blizzard Entertainment"],
+      "publisherAlone": true,
+      "publisherPathNotContainsAny": []
+    },
+    {
+      "id": "netease",
+      "displayName": "网易游戏",
+      "description": "网易游戏目录，例如永劫无间、逆水寒、梦幻西游、第五人格、蛋仔派对。网易云音乐、邮箱、有道和 UU 远程不计算。模拟器需要家长手动添加。",
+      "enabledByDefault": false,
+      "pathContainsAny": ["\\NetEase\\", "\\网易游戏\\", "\\NarakaBladepoint\\", "\\Naraka Bladepoint\\", "\\永劫无间\\", "\\逆水寒\\", "\\梦幻西游\\", "\\Identity V\\", "\\IdentityV\\", "\\第五人格\\", "\\蛋仔派对\\", "\\率土之滨\\", "\\阴阳师\\", "\\天谕\\"],
+      "pathNotContainsAny": ["\\CloudMusic\\", "\\网易云音乐\\", "\\MailMaster\\", "\\Youdao\\", "\\有道\\", "\\UURemote\\", "\\GameViewer\\"],
+      "publishers": ["NetEase", "网易"],
+      "publisherAlone": false,
+      "publisherPathNotContainsAny": []
+    },
+    {
+      "id": "mihoyo",
+      "displayName": "米哈游 / HoYoverse",
+      "description": "原神、崩坏：星穹铁道、绝区零、崩坏3 以及 HoYoPlay 启动器。米哈游或 COGNOSPHERE 的数字签名也可识别自定义安装目录。",
+      "enabledByDefault": false,
+      "pathContainsAny": ["\\Genshin Impact\\", "\\原神\\", "\\Star Rail\\", "\\Honkai Star Rail\\", "\\崩坏：星穹铁道\\", "\\ZenlessZoneZero\\", "\\Zenless Zone Zero\\", "\\绝区零\\", "\\HoYoPlay\\", "\\miHoYo\\", "\\Honkai Impact 3rd\\", "\\崩坏3\\"],
+      "pathNotContainsAny": [],
+      "publishers": ["miHoYo", "COGNOSPHERE", "Cognosphere", "米哈游"],
+      "publisherAlone": true,
+      "publisherPathNotContainsAny": []
+    },
+    {
+      "id": "delta-force",
+      "displayName": "三角洲行动",
+      "description": "三角洲行动（Delta Force）的独立目录。装在 Steam 里时也会被 Steam 规则覆盖。",
+      "enabledByDefault": true,
+      "pathContainsAny": ["\\Delta Force\\", "\\DeltaForce\\", "\\三角洲行动\\", "\\DFLauncher\\"],
+      "pathNotContainsAny": [],
+      "publishers": [],
+      "publisherAlone": false,
+      "publisherPathNotContainsAny": []
+    },
+    {
+      "id": "tencent",
+      "displayName": "腾讯常见 PC 游戏",
+      "description": "英雄联盟、无畏契约、地下城与勇士、穿越火线、QQ飞车等常见目录。不包含微信、QQ、会议和企业微信。",
+      "enabledByDefault": false,
+      "pathContainsAny": ["\\Tencent Games\\", "\\腾讯游戏\\", "\\League of Legends\\", "\\英雄联盟\\", "\\VALORANT\\", "\\Riot Games\\", "\\穿越火线\\", "\\地下城与勇士\\", "\\QQ飞车\\"],
+      "pathNotContainsAny": ["\\WeChat\\", "\\微信\\", "\\Tencent\\QQ\\", "\\WeMeet\\", "\\企业微信\\", "\\QQMusic\\", "\\QQBrowser\\", "\\Tencent Files\\"],
+      "publishers": ["Riot Games"],
+      "publisherAlone": true,
+      "publisherPathNotContainsAny": ["\\Riot Vanguard\\", "\\RiotClientServices\\"]
+    }
+  ]
+}

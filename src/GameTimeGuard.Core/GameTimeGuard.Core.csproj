@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>GameTimeGuard.Core</RootNamespace>
+    <AssemblyName>GameTimeGuard.Core</AssemblyName>
+    <Description>游戏时间守护的平台无关策略库：配额、时段、时钟防篡改、规则匹配与数据签名。</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\rules\platforms.json">
+      <LogicalName>GameTimeGuard.Core.platforms.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

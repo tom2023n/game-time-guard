@@ -1,0 +1,14 @@
+bin/
+obj/
+artifacts/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+publish/
+*.exe
+!installer/**/*.ico
+.DS_Store
+*.log
