@@ -14,6 +14,7 @@ internal sealed class TrayShell : IDisposable
     private readonly DispatcherTimer _timer;
     private bool _wizardOffered;
     private bool _adminWarned;
+    private bool _noticesShown;
     private bool _closed;
     private StatusReport? _status;
 
@@ -25,8 +26,12 @@ internal sealed class TrayShell : IDisposable
         menu.Items.Add("打开设置", null, (_, _) => OpenSettings());
         menu.Items.Add("申请临时加时", null, (_, _) => OpenBonus());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("保护仍在后台运行") { Enabled = false });
-        menu.Items.Add("关闭这个图标", null, (_, _) => Exit());
+        menu.Items.Add("暂停 30 分钟", null, (_, _) => _ = ChangeProtection(IpcOps.PauseProtection, 30));
+        menu.Items.Add("停止保护", null, (_, _) => _ = ChangeProtection(IpcOps.StopProtection, null));
+        menu.Items.Add("恢复保护", null, (_, _) => _ = ChangeProtection(IpcOps.ResumeProtection, null));
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(new ToolStripMenuItem("没有家长密码就不能退出") { Enabled = false });
+        menu.Items.Add("退出程序", null, (_, _) => _ = ExitWithPassword());
 
         _icon = new NotifyIcon
         {
@@ -75,6 +80,8 @@ internal sealed class TrayShell : IDisposable
         _icon.Text = text.Length > 60 ? text[..60] : text;
         if (_status is { SetupComplete: false })
             OfferWizard();
+        else if (_status?.PendingNotices.Count > 0 && !_noticesShown)
+            ShowNotices();
         else if (_status is { SetupComplete: true } && !_adminWarned && AdminAccount.IsAdministrator())
         {
             _adminWarned = true;
@@ -173,6 +180,53 @@ internal sealed class TrayShell : IDisposable
             Dialogs.Alert("已加时", $"今天额外增加了 {minutes} 分钟。");
         else
             Dialogs.Alert("没有加时", response?.Error ?? "连不上守护服务。");
+    }
+
+    private async Task ChangeProtection(string op, int? minutes)
+    {
+        var password = Dialogs.AskPassword(op == IpcOps.ResumeProtection ? "恢复保护需要家长密码。" : "暂停或停止保护需要家长密码。");
+        if (string.IsNullOrEmpty(password))
+            return;
+        var response = await _pipe.RequestAsync(new IpcRequest { Op = op, Password = password, Minutes = minutes });
+        Dialogs.Alert(response is { Ok: true } ? "已更新" : "没有更新", response is { Ok: true } ? "保护状态已经改好。" : response?.Error ?? "连不上守护服务。");
+    }
+
+    private async Task ExitWithPassword()
+    {
+        var password = Dialogs.AskPassword("退出程序需要家长密码。退出后不再限制游戏，直到你从开始菜单重新打开并恢复保护。");
+        if (string.IsNullOrEmpty(password))
+            return;
+        var response = await _pipe.RequestAsync(new IpcRequest { Op = IpcOps.ExitProgram, Password = password });
+        if (response is not { Ok: true })
+        {
+            Dialogs.Alert("没有退出", response?.Error ?? "连不上守护服务。");
+            return;
+        }
+
+        Dispose();
+        System.Windows.Application.Current.Shutdown(0);
+    }
+
+    private void ShowNotices()
+    {
+        if (_status is null || _status.PendingNotices.Count == 0)
+            return;
+        _noticesShown = true;
+        var text = string.Join("\n", _status.PendingNotices.Select(item => item.Utc + "  " + item.Message));
+        var password = Dialogs.AskPassword("上次运行之后有这些记录。输入家长密码后关闭提示：\n" + text);
+        if (string.IsNullOrEmpty(password))
+            return;
+        _ = AcknowledgeNotices(password);
+    }
+
+    private async Task AcknowledgeNotices(string password)
+    {
+        var response = await _pipe.RequestAsync(new IpcRequest { Op = IpcOps.AcknowledgeNotices, Password = password });
+        if (response is not { Ok: true })
+        {
+            _noticesShown = false;
+            Dialogs.Alert("没有关闭", response?.Error ?? "密码不对，下次仍会提示。");
+        }
     }
 
     private void Exit()

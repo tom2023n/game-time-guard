@@ -1,7 +1,7 @@
 ﻿; 游戏时间守护 0.1.0 安装脚本。请保持 UTF-8 BOM，Inno Setup 才能正确显示中文。
 
 #define MyAppName "游戏时间守护"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "GameTimeGuard"
 #define MyAppExeName "GameTimeGuard.Tray.exe"
 #define MyServiceExe "GameTimeGuard.Service.exe"
@@ -48,6 +48,9 @@ Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [UninstallDelete]
 Type: filesandordirs; Name: "{commonappdata}\GameTimeGuard"
 
+[Icons]
+Name: "{autoprograms}\游戏时间守护"; Filename: "{app}\{#MyAppExeName}"
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--wizard"; Description: "现在设置家长密码和默认规则"; Flags: nowait postinstall skipifsilent
 
@@ -78,6 +81,11 @@ begin
   Exec(Sc, 'failure GameTimeGuard reset= 86400 actions= restart/5000/restart/5000/restart/5000', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(Sc, 'failureflag GameTimeGuard 1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(Sc, 'start GameTimeGuard', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(Sc, 'create GameTimeGuardWatch binPath= "' + App + ' --watchdog" start= auto DisplayName= "游戏时间守护看门狗" obj= LocalSystem', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(Sc, 'description GameTimeGuardWatch "如果主服务被停掉或删掉，就把它重新注册并启动。"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(Sc, 'failure GameTimeGuardWatch reset= 86400 actions= restart/5000/restart/5000/restart/5000', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(Sc, 'start GameTimeGuardWatch', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/Create /TN GameTimeGuardEnsure /SC MINUTE /MO 1 /RU SYSTEM /RL HIGHEST /F /TR "\"' + App + '\" --ensure"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1500);
 end;
 
@@ -117,8 +125,11 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(ExpandConstant('{sys}\schtasks.exe'), '/Delete /TN GameTimeGuardEnsure /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(ExpandConstant('{sys}\sc.exe'), 'stop GameTimeGuardWatch', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec(ExpandConstant('{sys}\sc.exe'), 'stop GameTimeGuard', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Sleep(1200);
+    Exec(ExpandConstant('{sys}\sc.exe'), 'delete GameTimeGuardWatch', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec(ExpandConstant('{sys}\sc.exe'), 'delete GameTimeGuard', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     RegDeleteKeyIncludingSubkeys(HKLM, 'SOFTWARE\GameTimeGuard');
   end;

@@ -18,6 +18,18 @@ internal sealed class SettingsWindow : Window
     private readonly CheckBox _unrestricted = new() { Content = "全天允许，不限制时段", Margin = new Thickness(0, 0, 0, 8) };
     private readonly ListBox _customList = new() { Height = 140 };
     private readonly TextBlock _today;
+    private readonly ComboBox _gapPolicy = new() { Width = 220, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBox _gapPenalty = Theme.Field();
+    private readonly CheckBox _emailEnabled = new() { Content = "启用邮件通知（默认关闭）" };
+    private readonly TextBox _smtpHost = Theme.Field();
+    private readonly TextBox _smtpPort = Theme.Field();
+    private readonly CheckBox _smtpSsl = new() { Content = "使用加密连接", IsChecked = true };
+    private readonly TextBox _smtpUser = Theme.Field();
+    private readonly PasswordBox _smtpPassword = Theme.Secret();
+    private readonly TextBox _notifyAddress = Theme.Field();
+    private readonly CheckBox _notifyTamper = new() { Content = "发现异常时发信", IsChecked = true };
+    private readonly CheckBox _notifyTimeUp = new() { Content = "时间用完时发信", IsChecked = true };
+    private readonly CheckBox _notifySummary = new() { Content = "每天 20 点后发一封小结", IsChecked = true };
 
     public SettingsWindow(GuardPipe pipe, string password, SettingsSnapshot settings, StatusReport? status, bool administrator)
     {
@@ -42,6 +54,8 @@ internal sealed class SettingsWindow : Window
         tabs.Items.Add(Page("管控范围", RulesPage(settings)));
         tabs.Items.Add(Page("临时加时", BonusPage()));
         tabs.Items.Add(Page("家长密码", PasswordPage()));
+        tabs.Items.Add(Page("保护开关", ProtectionPage(settings)));
+        tabs.Items.Add(Page("邮件通知", MailPage(settings)));
         Content = tabs;
         RefreshCustom();
     }
@@ -147,6 +161,85 @@ internal sealed class SettingsWindow : Window
         return panel;
     }
 
+    private UIElement ProtectionPage(SettingsSnapshot settings)
+    {
+        _gapPolicy.ItemsSource = new[] { "看不准时记一笔罚时", "看不准时把整段中断都算上" };
+        _gapPolicy.SelectedIndex = settings.GapPolicy == "full" ? 1 : 0;
+        _gapPenalty.Text = settings.GapPenaltyMinutes.ToString();
+        _gapPenalty.Width = 80;
+        var panel = new StackPanel();
+        panel.Children.Add(Theme.Body("只有知道家长密码的人可以暂停、停止、退出或卸载。服务管理器、任务管理器和直接删文件都会被拦住；万一还是被停掉，下次启动会记下，并把这段时间补进今天的额度。"));
+        panel.Children.Add(Theme.Primary("暂停 30 分钟", () => _ = ProtectionAsync(IpcOps.PauseProtection, 30)));
+        panel.Children.Add(Theme.Primary("停止保护", () => _ = ProtectionAsync(IpcOps.StopProtection, null)));
+        panel.Children.Add(Theme.Quiet("恢复保护", () => _ = ProtectionAsync(IpcOps.ResumeProtection, null)));
+        panel.Children.Add(Theme.Body("服务中断时如果看不出有没有在玩游戏：", muted: true));
+        panel.Children.Add(_gapPolicy);
+        panel.Children.Add(Theme.Body("罚时分钟数", muted: true));
+        panel.Children.Add(_gapPenalty);
+        panel.Children.Add(Theme.Primary("保存中断记账", () => _ = SaveAsync()));
+        return panel;
+    }
+
+    private UIElement MailPage(SettingsSnapshot settings)
+    {
+        _emailEnabled.IsChecked = settings.EmailEnabled;
+        _smtpHost.Text = settings.SmtpHost;
+        _smtpPort.Text = settings.SmtpPort.ToString();
+        _smtpSsl.IsChecked = settings.SmtpUseSsl;
+        _smtpUser.Text = settings.SmtpUser;
+        _notifyAddress.Text = settings.NotifyAddress;
+        _notifyTamper.IsChecked = settings.NotifyTamper;
+        _notifyTimeUp.IsChecked = settings.NotifyTimeUp;
+        _notifySummary.IsChecked = settings.NotifyDailySummary;
+        var panel = new StackPanel();
+        panel.Children.Add(Theme.Body(settings.HasSmtpPassword ? "已经保存过邮箱密码。留空表示不修改。" : "邮箱密码会用这台电脑的 DPAPI 加密，不会明文保存。"));
+        panel.Children.Add(_emailEnabled);
+        panel.Children.Add(Labeled("SMTP 服务器", _smtpHost));
+        panel.Children.Add(Labeled("端口", _smtpPort));
+        panel.Children.Add(_smtpSsl);
+        panel.Children.Add(Labeled("用户名", _smtpUser));
+        panel.Children.Add(Labeled("密码", _smtpPassword));
+        panel.Children.Add(Labeled("收件邮箱", _notifyAddress));
+        panel.Children.Add(_notifyTamper);
+        panel.Children.Add(_notifyTimeUp);
+        panel.Children.Add(_notifySummary);
+        panel.Children.Add(Theme.Primary("保存通知", () => _ = SaveAsync()));
+        panel.Children.Add(Theme.Quiet("发送测试邮件", () => _ = TestMailAsync()));
+        return panel;
+    }
+
+    private async Task ProtectionAsync(string op, int? minutes)
+    {
+        var password = Dialogs.AskPassword("这个操作需要家长密码。");
+        if (string.IsNullOrEmpty(password))
+            return;
+        var response = await _pipe.RequestAsync(new IpcRequest { Op = op, Password = password, Minutes = minutes });
+        Dialogs.Alert(response is { Ok: true } ? "已更新" : "没有更新", response is { Ok: true } ? "保护状态已经改好。" : response?.Error ?? "连不上守护服务。");
+    }
+
+    private async Task TestMailAsync()
+    {
+        var update = Collect();
+        if (update is null)
+            return;
+        var response = await _pipe.RequestAsync(new IpcRequest
+        {
+            Op = IpcOps.TestEmail,
+            Password = _password,
+            Settings = update
+        });
+        _smtpPassword.Clear();
+        Dialogs.Alert(response is { Ok: true } ? "已发送" : "没有发出去", response is { Ok: true } ? "请到收件箱看测试邮件。" : response?.Error ?? "连不上守护服务。");
+    }
+
+    private static StackPanel Labeled(string label, UIElement field)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+        panel.Children.Add(Theme.Body(label, muted: true));
+        panel.Children.Add(field);
+        return panel;
+    }
+
     private UIElement PasswordPage()
     {
         var panel = new StackPanel();
@@ -216,6 +309,18 @@ internal sealed class SettingsWindow : Window
         update.EnabledRuleIds = _rules.Where(rule => rule.Box.IsChecked == true).Select(rule => rule.Id).ToList();
         update.CustomGames = _custom.ToList();
         update.GraceSeconds = 30;
+        update.GapPolicy = _gapPolicy.SelectedIndex == 1 ? "full" : "penalty";
+        update.GapPenaltyMinutes = int.TryParse(_gapPenalty.Text.Trim(), out var penalty) ? penalty : 30;
+        update.EmailEnabled = _emailEnabled.IsChecked == true;
+        update.SmtpHost = _smtpHost.Text.Trim();
+        update.SmtpPort = int.TryParse(_smtpPort.Text.Trim(), out var port) ? port : 587;
+        update.SmtpUseSsl = _smtpSsl.IsChecked == true;
+        update.SmtpUser = _smtpUser.Text.Trim();
+        update.SmtpPassword = _smtpPassword.Password;
+        update.NotifyAddress = _notifyAddress.Text.Trim();
+        update.NotifyTamper = _notifyTamper.IsChecked == true;
+        update.NotifyTimeUp = _notifyTimeUp.IsChecked == true;
+        update.NotifyDailySummary = _notifySummary.IsChecked == true;
         return update;
     }
 

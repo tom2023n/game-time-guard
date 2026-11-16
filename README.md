@@ -2,7 +2,7 @@
 
 给家里电脑用的游戏时间管理工具。它在后台记住孩子今天玩了多久，快到点时提醒，时间用完或不在允许时段时，先等 30 秒，再结束游戏进程。
 
-这是 0.1.0。协议是 [MIT](LICENSE)。
+这是 0.2.0。协议是 [MIT](LICENSE)。
 
 ## 它管什么
 
@@ -18,11 +18,21 @@
 
 每天共用一个额度。默认周日 180 分钟，其他日子 120 分钟，全天都可以玩。允许时段可以之后再设，例如每天 18:00–21:00。临时加时 15 / 30 / 60 分钟，只对今天有效，要家长密码。
 
-## 请先看这一段
+## 家长密码是唯一的开关
 
-**孩子必须使用标准用户，不能是管理员。** 管理员可以停掉服务、改文件、卸掉软件。任何家长控制软件都挡不住一个管理员账户。作者家里的孩子目前用的是管理员账户，所以程序发现当前登录的是管理员时，会给出明确提示。
+暂停、停止、退出、卸载和改设置都要家长密码。托盘里可以直接「暂停 30 分钟」「停止保护」或「退出程序」。退出后保护不再限制游戏，开始菜单里的「游戏时间守护」可以再打开，用密码恢复。
 
-家长自己留着管理员账户，用来安装和改设置。安装时请家长在场，亲自设密码。密码只用 PBKDF2-SHA256 加盐保存，程序里没有明文，也没有万能密码。
+服务管理器、`sc`、任务管理器、结束进程和直接删记录，会被尽量拦住：服务的访问权限不给管理员停止或删除，进程拒绝普通的结束请求，数据和程序目录由 SYSTEM 拥有并拒绝管理员改写。主服务旁边还有一个看门狗服务，以及每分钟以 SYSTEM 运行的计划任务；主服务被停掉或删掉时，它们会把它装回去并重新启动。
+
+这些挡不住一个下了决心、又知道怎么取得所有权或打开调试权限的管理员。那样做会留下只追加的签名记录，下次打开时托盘会请家长输入密码才能关掉提示，并把服务中断期间的时间补进今天的额度。看不准孩子当时有没有在玩时，默认记 30 分钟罚时，也可以在设置里改成把整段中断都算上。
+
+孩子的账户是管理员还是标准用户都可以用，不需要为了安装去改账户类型。当前账户是管理员时，程序会说明上面这些限度，不会拦住你继续用。
+
+密码只用 PBKDF2-SHA256 加盐保存，没有明文，也没有万能密码。安装时请家长在场，亲自设密码。
+
+## 如果仍然想给孩子用标准账户
+
+这不是必须的。标准账户会让上面那些绕过更难做到。不需要微软账号。
 
 ## 给孩子建一个本地标准账户
 
@@ -42,7 +52,7 @@ Windows 专业版也可以用 `lusrmgr.msc`：新建本地用户，不要把它�
 
 ## 安装
 
-1. 用家长的管理员账户运行 `GameTimeGuard-Setup-0.1.0.exe`。
+1. 用家长的管理员账户运行 `GameTimeGuard-Setup-0.2.0.exe`。
 2. 看完安装前说明，设一个家长密码。建议 8 位以上，不要用孩子知道的生日。
 3. 确认默认规则：周日 180 分钟，其余 120 分钟，先启用 Steam、WeGame、三角洲行动。
 4. 装好后，服务 `GameTimeGuard` 以 LocalSystem 自动运行。每个用户登录时都会打开托盘图标。
@@ -67,18 +77,18 @@ Windows 专业版也可以用 `lusrmgr.msc`：新建本地用户，不要把它�
 
 ## 它怎么防着绕过
 
-这些手段是为了挡住标准用户的常见做法，不是为了挡住管理员。
+正路只有家长密码。其余路径会尽量失败，失败不了就留下记录并补记账。
 
-- **改系统时间。** 服务用包含睡眠时间的单调时钟（`QueryInterruptTime`）推进「可信时间」。同一段开机里把时钟往前拨，不会直接进入下一天，也不会多出额度；往回拨超过大约 3 分钟，今天的额度按已用完处理，直到家长解除锁定。电脑睡眠不会被当成篡改。跨过重启时，时钟若比上次记下的可信时间还早，同样锁定。能联网时，还会对照阿里云、腾讯和 Windows 的时间服务器。
-- **删掉或改掉记录。** 配置和使用记录放在 `C:\ProgramData\GameTimeGuard`，并用 HMAC-SHA256 签名。注册表 `HKLM\SOFTWARE\GameTimeGuard` 里有一份副本。删掉其中一份会从另一份恢复。两份都坏了、或者用量被换成更旧的一份，就按额度用完处理。签名密钥只有 SYSTEM 和管理员能读。
-- **结束进程。** 服务设为失败后 5 秒自动再启动。标准用户停不了它。服务也会看托盘在不在，不在就在用户会话里再打开。
-- **卸载。** 要家长密码。
+- **改系统时间。** 服务用包含睡眠时间的单调时钟（`QueryInterruptTime`）推进「可信时间」。同一段开机里把时钟往前拨，不会直接进入下一天；往回拨超过大约 3 分钟，今天的额度按已用完处理，并写入异常记录。能联网时对照阿里云、腾讯和 Windows 的时间服务器。
+- **删掉或改掉记录。** 配置、用量和异常记录有三份签名副本：`C:\ProgramData\GameTimeGuard`、注册表 `HKLM\SOFTWARE\GameTimeGuard`，以及 SYSTEM 配置目录下的一份隐藏副本。删掉一份会从另外两份恢复。目录所有权归 SYSTEM，管理员默认不能改、不能删，除非先取得所有权。
+- **停服务、结束进程。** 服务的安全描述符不把停止、删除和改配置交给管理员。进程拒绝普通的结束和挂起请求，但不会把自己标成关键进程，所以不会因此蓝屏。看门狗服务和每分钟的 SYSTEM 计划任务会把被删掉的主服务装回去。任务管理器如果带调试权限，仍可能结束进程；进程一停，下次启动会按中断时长补记。
+- **卸载和退出。** 要家长密码。密码正确后，服务会放开大约十分钟的停止权限，安装程序才能卸掉。
 
-已知的边界，0.1 没有假装能堵住：
+仍然防不住的事：
 
-- 管理员孩子可以停服务、换文件、删注册表。
-- 关机后在 BIOS 里把日期往后拨，并且断开网络让校时失败，有可能直接进入下一天。开机之后再拨时钟，不会这样。
-- 把游戏整个拷到一个没有特征的目录，而且文件没有对应发行方的签名时，需要家长把那个文件夹加进「自定义游戏」。只加某个 exe 的话，改名就能躲开，所以优先加文件夹。
+- 管理员取得所有权、改掉上面的权限，并且把主服务、看门狗和计划任务一起删掉。
+- 关机后在 BIOS 里把日期往后拨，并且断开网络让校时失败，有可能进入下一天。
+- 把游戏整个拷到一个没有特征的目录，而且文件没有对应发行方的签名。把那个文件夹加进「自定义游戏」即可。只加某个 exe 的话，改名就能躲开。
 
 解除锁定后，今天已经扣掉的时间不会回来。如果一解除又被锁上，先到 Windows 设置里打开「自动设置时间」，联网校时，再解除。之后如果还想玩，用临时加时。
 
@@ -87,7 +97,9 @@ Windows 专业版也可以用 `lusrmgr.msc`：新建本地用户，不要把它�
 | 内容 | 位置 |
 | --- | --- |
 | 配置、用量、状态 | `C:\ProgramData\GameTimeGuard` |
-| 签名密钥 | 同目录下的 `secrets`，以及注册表副本 |
+| 签名密钥 | 同目录下的 `secrets`，注册表，以及隐藏副本 |
+| 异常记录 | 上面三处里的 `tamper-log.json`，只追加 |
+| 隐藏副本 | `C:\Windows\System32\config\systemprofile\AppData\Local\GameTimeGuard` |
 | 服务日志 | `C:\ProgramData\GameTimeGuard\logs\service.log` |
 | 家长自定义规则 | `C:\ProgramData\GameTimeGuard\platforms.json`（没有这个文件就用安装目录里的） |
 
@@ -172,6 +184,9 @@ dotnet test tests/GameTimeGuard.Core.Tests -c Release
 - 实际枚举进程、读取路径和数字签名，以及结束进程
 - 命名管道、托盘图标、设置窗口、首次向导和弹出提醒
 - 从服务往用户会话里拉起托盘
+- 服务和进程的访问权限、看门狗、每分钟计划任务
+- 服务中断后的补记（进程启动时间、有没有人登录）
+- DPAPI 加密的邮箱口令和真正发出的 SMTP 邮件
 - 联网校时（报文解析有测试，真正的 UDP 请求没有）
 - Inno Setup 安装包从安装到卸载的整段过程
 
@@ -188,6 +203,6 @@ dotnet test tests/GameTimeGuard.Core.Tests -c Release
 
 GameTimeGuard is a small Windows parental-control tool for game time. A LocalSystem service meters play against one shared daily quota and optional time windows, then closes matching games after a 30-second warning. A per-user tray app shows the remaining time and a password-protected settings window.
 
-The child needs a standard (non-admin) Windows account. An administrator can disable any tool like this. Built-in rules cover Steam, WeGame, Epic, Battle.net, NetEase, miHoYo/HoYoverse, Delta Force, and common Tencent PC games, matched by install path and publisher signature rather than by executable name.
+The parent password is the only intended way to pause, stop, exit, uninstall, or change settings. The service keeps running when a parent stops protection, so it can be resumed from the Start menu. Other ways of stopping it are blocked where practical. A determined administrator can still take ownership or use a debug privilege; that is logged, and the missing time is charged on the next start. The child's account does not have to be a standard user.
 
 Core policy (quota, day rollover, time windows, clock tampering, rule matching, HMAC) lives in `GameTimeGuard.Core` and is covered by unit tests. The service, tray UI, and Inno Setup installer target Windows and were cross-compiled, not run, in the environment that produced this tree. `.\build\publish.ps1` on Windows builds a self-contained installer. Tag `v*` publishes that installer to a GitHub Release.

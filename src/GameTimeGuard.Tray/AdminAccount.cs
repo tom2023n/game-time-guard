@@ -6,7 +6,7 @@ namespace GameTimeGuard.Tray;
 internal static class AdminAccount
 {
     public const string Warning =
-        "当前登录的是管理员账户。如果这是家长自己的账户，可以忽略这条提示。请不要让孩子使用管理员账户，否则孩子可以自己关掉时间限制。给孩子单独建一个本地标准账户，不必登录微软账号。";
+        "当前登录的是管理员账户。保护仍然有效：没有家长密码就不能从这里暂停、停止或卸载。服务管理器、任务管理器和删文件也会被尽量拦住。懂行的管理员最终仍可能自己关掉这类软件，关掉之后会留下记录，并在下次启动时把中断的时间算进去。不必为了使用本软件去改账户类型。";
 
     public static bool IsAdministrator()
     {

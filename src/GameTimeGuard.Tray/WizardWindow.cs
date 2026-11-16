@@ -67,7 +67,7 @@ internal sealed class WizardWindow : Window
             case 0:
                 Add(Theme.Title("先把规矩定下来"));
                 Add(Theme.Body("游戏时间守护会在后台记住今天已经玩了多久。快用完时它会提醒；到点或超出允许时段后，先等 30 秒，再结束正在玩的游戏。"));
-                Add(Theme.Body("请让孩子使用单独的标准用户账户，家长自己保留管理员。孩子如果是管理员，就可以把这类软件关掉。", muted: true));
+                Add(Theme.Body("孩子的账户是不是管理员都可以用。没有家长密码就不能从这里关掉保护。懂行的管理员仍可能绕过，绕过会被记下来。", muted: true));
                 if (AdminAccount.IsAdministrator())
                     Add(Banner(AdminAccount.Warning));
                 break;
