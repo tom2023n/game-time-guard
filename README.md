@@ -137,6 +137,8 @@ sc start GameTimeGuard
 
 `sc` 的等号后面必须有一个空格。
 
+安装脚本自带简体中文语言文件 `installer/ChineseSimplified.isl`。它来自 [Inno Setup 官方翻译](https://jrsoftware.org/files/istrans/)，许可证和出处写在 `installer/ChineseSimplified.isl.license.txt`。安装好的 Inno Setup 6 并不自带这个文件，所以不要改回 `compiler:Languages\...`。
+
 GitHub Actions 在 `windows-latest` 上跑测试、编译安装包。推送 `v*` 标签（例如 `v0.1.0`）时，会把安装包挂到对应的 Release。
 
 ## 程序是怎么分成几块的
