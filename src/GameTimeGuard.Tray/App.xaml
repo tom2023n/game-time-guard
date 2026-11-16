@@ -1,0 +1,10 @@
+<Application x:Class="GameTimeGuard.Tray.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+  <Application.Resources>
+    <SolidColorBrush x:Key="PaperBrush" Color="#F3EEE4" />
+    <SolidColorBrush x:Key="InkBrush" Color="#1B2430" />
+    <SolidColorBrush x:Key="TealBrush" Color="#0E6B5C" />
+  </Application.Resources>
+</Application>
