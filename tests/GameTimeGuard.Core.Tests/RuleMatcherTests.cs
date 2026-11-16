@@ -119,7 +119,7 @@ public class RuleMatcherTests
         var rules = _catalog.Enabled(["steam", "mihoyo", "epic"]);
         Assert.False(RuleMatcher.RequiresPublisherLookup(rules, @"D:\Steam\steamapps\common\Demo\a.exe"));
         Assert.True(RuleMatcher.RequiresPublisherLookup(rules, @"E:\Games\copied\YuanShen.exe"));
-        Assert.False(RuleMatcher.RequiresPublisherLookup(rules, @"C:\Epic Games\Launcher\Portal\Binaries\launcher.exe"));
+        Assert.False(RuleMatcher.RequiresPublisherLookup(_catalog.Enabled(["epic"]), @"C:\Epic Games\Launcher\Portal\Binaries\launcher.exe"));
         Assert.False(RuleMatcher.RequiresPublisherLookup(rules, @"C:\Windows\notepad.exe"));
     }
 
