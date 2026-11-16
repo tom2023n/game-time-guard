@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
+using GameTimeGuard.Core;
 using GameTimeGuard.Core.Schedule;
+using GameTimeGuard.Core.Security;
 
 namespace GameTimeGuard.Core.Ipc;
 
@@ -13,6 +15,12 @@ public static class IpcOps
     public const string GrantBonus = "grantBonus";
     public const string AcknowledgeTamper = "acknowledgeTamper";
     public const string AuthorizeUninstall = "authorizeUninstall";
+    public const string PauseProtection = "pauseProtection";
+    public const string StopProtection = "stopProtection";
+    public const string ResumeProtection = "resumeProtection";
+    public const string ExitProgram = "exitProgram";
+    public const string AcknowledgeNotices = "acknowledgeNotices";
+    public const string TestEmail = "testEmail";
 }
 
 public sealed class StatusReport
@@ -66,7 +74,34 @@ public sealed class StatusReport
     public string Message { get; set; } = "";
 
     [JsonPropertyName("version")]
-    public string Version { get; set; } = "0.1.0";
+    public string Version { get; set; } = AppVersion.Current;
+
+    [JsonPropertyName("protectionState")]
+    public string ProtectionState { get; set; } = "enforcing";
+
+    [JsonPropertyName("pauseUntilUtc")]
+    public string PauseUntilUtc { get; set; } = "";
+
+    [JsonPropertyName("traySuppressed")]
+    public bool TraySuppressed { get; set; }
+
+    [JsonPropertyName("pendingNotices")]
+    public List<TamperNotice> PendingNotices { get; set; } = [];
+}
+
+public sealed class TamperNotice
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("utc")]
+    public string Utc { get; set; } = "";
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = "";
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = "";
 }
 
 public sealed class RuleInfo
@@ -103,6 +138,42 @@ public sealed class SettingsSnapshot
 
     [JsonPropertyName("graceSeconds")]
     public int GraceSeconds { get; set; }
+
+    [JsonPropertyName("gapPolicy")]
+    public string GapPolicy { get; set; } = "penalty";
+
+    [JsonPropertyName("gapPenaltyMinutes")]
+    public int GapPenaltyMinutes { get; set; } = 30;
+
+    [JsonPropertyName("emailEnabled")]
+    public bool EmailEnabled { get; set; }
+
+    [JsonPropertyName("smtpHost")]
+    public string SmtpHost { get; set; } = "";
+
+    [JsonPropertyName("smtpPort")]
+    public int SmtpPort { get; set; } = 587;
+
+    [JsonPropertyName("smtpUseSsl")]
+    public bool SmtpUseSsl { get; set; } = true;
+
+    [JsonPropertyName("smtpUser")]
+    public string SmtpUser { get; set; } = "";
+
+    [JsonPropertyName("notifyAddress")]
+    public string NotifyAddress { get; set; } = "";
+
+    [JsonPropertyName("notifyTamper")]
+    public bool NotifyTamper { get; set; } = true;
+
+    [JsonPropertyName("notifyTimeUp")]
+    public bool NotifyTimeUp { get; set; } = true;
+
+    [JsonPropertyName("notifyDailySummary")]
+    public bool NotifyDailySummary { get; set; } = true;
+
+    [JsonPropertyName("hasSmtpPassword")]
+    public bool HasSmtpPassword { get; set; }
 
     [JsonPropertyName("catalog")]
     public List<RuleInfo> Catalog { get; set; } = [];

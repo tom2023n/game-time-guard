@@ -98,6 +98,60 @@ public sealed class GuardConfig
     [JsonPropertyName("lastUsageSequence")]
     public long LastUsageSequence { get; set; }
 
+    /// <summary>enforcing、paused 或 stopped。只有家长密码能改。</summary>
+    [JsonPropertyName("protectionState")]
+    public string ProtectionState { get; set; } = "enforcing";
+
+    [JsonPropertyName("pauseUntilUtc")]
+    public string? PauseUntilUtc { get; set; }
+
+    [JsonPropertyName("traySuppressed")]
+    public bool TraySuppressed { get; set; }
+
+    /// <summary>penalty 或 full。服务中断且无法确定是否在玩游戏时怎么记账。</summary>
+    [JsonPropertyName("gapPolicy")]
+    public string GapPolicy { get; set; } = "penalty";
+
+    [JsonPropertyName("gapPenaltyMinutes")]
+    public int GapPenaltyMinutes { get; set; } = 30;
+
+    [JsonPropertyName("emailEnabled")]
+    public bool EmailEnabled { get; set; }
+
+    [JsonPropertyName("smtpHost")]
+    public string SmtpHost { get; set; } = "";
+
+    [JsonPropertyName("smtpPort")]
+    public int SmtpPort { get; set; } = 587;
+
+    [JsonPropertyName("smtpUseSsl")]
+    public bool SmtpUseSsl { get; set; } = true;
+
+    [JsonPropertyName("smtpUser")]
+    public string SmtpUser { get; set; } = "";
+
+    /// <summary>DPAPI 机器范围加密后的口令，不是明文。</summary>
+    [JsonPropertyName("smtpPasswordProtected")]
+    public string SmtpPasswordProtected { get; set; } = "";
+
+    [JsonPropertyName("notifyAddress")]
+    public string NotifyAddress { get; set; } = "";
+
+    [JsonPropertyName("notifyTamper")]
+    public bool NotifyTamper { get; set; } = true;
+
+    [JsonPropertyName("notifyTimeUp")]
+    public bool NotifyTimeUp { get; set; } = true;
+
+    [JsonPropertyName("notifyDailySummary")]
+    public bool NotifyDailySummary { get; set; } = true;
+
+    [JsonPropertyName("lastSummaryDate")]
+    public string LastSummaryDate { get; set; } = "";
+
+    [JsonPropertyName("uninstallArmedUntilUtc")]
+    public string? UninstallArmedUntilUtc { get; set; }
+
     public int MinutesFor(DayOfWeek day)
     {
         var key = DayNames.From(day);
@@ -135,4 +189,41 @@ public sealed class SettingsUpdate
 
     [JsonPropertyName("graceSeconds")]
     public int GraceSeconds { get; set; } = 30;
+
+    [JsonPropertyName("gapPolicy")]
+    public string GapPolicy { get; set; } = "penalty";
+
+    [JsonPropertyName("gapPenaltyMinutes")]
+    public int GapPenaltyMinutes { get; set; } = 30;
+
+    [JsonPropertyName("emailEnabled")]
+    public bool EmailEnabled { get; set; }
+
+    [JsonPropertyName("smtpHost")]
+    public string SmtpHost { get; set; } = "";
+
+    [JsonPropertyName("smtpPort")]
+    public int SmtpPort { get; set; } = 587;
+
+    [JsonPropertyName("smtpUseSsl")]
+    public bool SmtpUseSsl { get; set; } = true;
+
+    [JsonPropertyName("smtpUser")]
+    public string SmtpUser { get; set; } = "";
+
+    /// <summary>只在这次保存里填写。留空表示不改已保存的口令。</summary>
+    [JsonPropertyName("smtpPassword")]
+    public string SmtpPassword { get; set; } = "";
+
+    [JsonPropertyName("notifyAddress")]
+    public string NotifyAddress { get; set; } = "";
+
+    [JsonPropertyName("notifyTamper")]
+    public bool NotifyTamper { get; set; } = true;
+
+    [JsonPropertyName("notifyTimeUp")]
+    public bool NotifyTimeUp { get; set; } = true;
+
+    [JsonPropertyName("notifyDailySummary")]
+    public bool NotifyDailySummary { get; set; } = true;
 }

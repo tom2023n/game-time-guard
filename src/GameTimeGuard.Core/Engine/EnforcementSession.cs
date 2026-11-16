@@ -1,3 +1,4 @@
+using GameTimeGuard.Core;
 using GameTimeGuard.Core.Clock;
 using GameTimeGuard.Core.Ipc;
 using GameTimeGuard.Core.Quota;
@@ -64,9 +65,24 @@ public sealed class EnforcementSession
 
         var beforeUsage = Usage;
         var beforeClock = Clock;
+        var beforeConfig = Config.ProtectionState + Config.PauseUntilUtc;
         var sample = TrustedClock.Observe(Clock, wall, mono, offset, ntpUtc);
+        Config = ProtectionControl.Normalize(Config, sample.TrustedUtc);
         var matched = RuleMatcher.MatchAll(_processes.Query(), Catalog.Enabled(Config.EnabledRuleIds), Config.CustomGames);
-        var evaluation = QuotaEngine.Evaluate(Usage, Config, sample, matched.Count > 0, elapsed, _maxCredit);
+        var seen = string.Join(";", matched.Select(match => match.DisplayName).Distinct(StringComparer.OrdinalIgnoreCase));
+        Evaluation evaluation;
+        if (!Config.SetupComplete || ProtectionControl.IsIdle(Config, sample.TrustedUtc))
+        {
+            evaluation = Config.SetupComplete
+                ? IdleEvaluation(sample, seen)
+                : QuotaEngine.Evaluate(Usage, Config, sample, false, TimeSpan.Zero, _maxCredit);
+        }
+        else
+        {
+            if (seen != Usage.LastSeenGames)
+                Usage = Usage with { LastSeenGames = seen };
+            evaluation = QuotaEngine.Evaluate(Usage, Config, sample, matched.Count > 0, elapsed, _maxCredit);
+        }
 
         var terminated = new List<int>();
         if (evaluation.Kind == DecisionKind.Terminate)
@@ -84,7 +100,7 @@ public sealed class EnforcementSession
         Clock = sample;
         _lastEvaluation = evaluation;
         _matched = matched;
-        var changed = beforeUsage != Usage || beforeClock != sample;
+        var changed = beforeUsage != Usage || beforeClock != sample || beforeConfig != Config.ProtectionState + Config.PauseUntilUtc;
         return new EnforcementResult(evaluation, sample, matched, terminated, changed);
     }
 
@@ -112,7 +128,10 @@ public sealed class EnforcementSession
             GraceSecondsRemaining = evaluation?.GraceSecondsRemaining ?? 0,
             ReasonCode = evaluation?.ReasonCode ?? ReasonCodes.Ok,
             Message = evaluation?.Message ?? "",
-            Version = "0.1.0"
+            Version = AppVersion.Current,
+            ProtectionState = Config.ProtectionState,
+            PauseUntilUtc = Config.PauseUntilUtc ?? "",
+            TraySuppressed = Config.TraySuppressed
         };
     }
 
@@ -127,6 +146,18 @@ public sealed class EnforcementSession
             EnabledRuleIds = settings.EnabledRuleIds,
             CustomGames = settings.CustomGames,
             GraceSeconds = settings.GraceSeconds,
+            GapPolicy = settings.GapPolicy,
+            GapPenaltyMinutes = settings.GapPenaltyMinutes,
+            EmailEnabled = settings.EmailEnabled,
+            SmtpHost = settings.SmtpHost,
+            SmtpPort = settings.SmtpPort,
+            SmtpUseSsl = settings.SmtpUseSsl,
+            SmtpUser = settings.SmtpUser,
+            NotifyAddress = settings.NotifyAddress,
+            NotifyTamper = settings.NotifyTamper,
+            NotifyTimeUp = settings.NotifyTimeUp,
+            NotifyDailySummary = settings.NotifyDailySummary,
+            HasSmtpPassword = !string.IsNullOrEmpty(Config.SmtpPasswordProtected),
             Catalog = Catalog.Rules.Select(rule => new RuleInfo
             {
                 Id = rule.Id,
@@ -157,7 +188,7 @@ public sealed class EnforcementSession
         return null;
     }
 
-    public string? UpdateSettings(string password, SettingsUpdate settings)
+    public string? UpdateSettings(string password, SettingsUpdate settings, ISecretProtector? secrets = null)
     {
         var denied = RequirePassword(password);
         if (denied is not null)
@@ -171,12 +202,72 @@ public sealed class EnforcementSession
         var sequence = next.Sequence;
         var lastUsage = next.LastUsageSequence;
         var setup = next.SetupComplete;
+        var protectedPassword = next.SmtpPasswordProtected;
+        var state = next.ProtectionState;
+        var pauseUntil = next.PauseUntilUtc;
+        var tray = next.TraySuppressed;
+        var armed = next.UninstallArmedUntilUtc;
+        var summary = next.LastSummaryDate;
         DefaultPolicy.Apply(next, settings);
+        if (!string.IsNullOrEmpty(settings.SmtpPassword))
+        {
+            if (secrets is null)
+                return "无法加密邮箱密码";
+            protectedPassword = secrets.Protect(settings.SmtpPassword);
+        }
+
         next.ParentPassword = hash;
         next.SetupComplete = setup;
         next.LastUsageSequence = lastUsage;
+        next.SmtpPasswordProtected = protectedPassword;
+        next.ProtectionState = state;
+        next.PauseUntilUtc = pauseUntil;
+        next.TraySuppressed = tray;
+        next.UninstallArmedUntilUtc = armed;
+        next.LastSummaryDate = summary;
         next.Sequence = sequence + 1;
+        var mailError = MailNotices.Validate(next);
+        if (mailError is not null)
+            return mailError;
         Config = next;
+        return null;
+    }
+
+    public string? Pause(string password, int minutes)
+    {
+        var denied = RequirePassword(password);
+        if (denied is not null)
+            return denied;
+        if (Clock is not { HasSample: true } clock)
+            return "还没有可信时间，请稍后再试";
+        var error = ProtectionControl.Pause(Config, clock.TrustedUtc, minutes);
+        return error;
+    }
+
+    public string? StopProtection(string password, bool suppressTray)
+    {
+        var denied = RequirePassword(password);
+        if (denied is not null)
+            return denied;
+        ProtectionControl.Stop(Config, suppressTray);
+        return null;
+    }
+
+    public string? ResumeProtection(string password)
+    {
+        var denied = RequirePassword(password);
+        if (denied is not null)
+            return denied;
+        ProtectionControl.Resume(Config);
+        return null;
+    }
+
+    public string? ArmUninstall(string password, DateTimeOffset trustedUtc)
+    {
+        var denied = RequirePassword(password);
+        if (denied is not null)
+            return denied;
+        ProtectionControl.ArmUninstall(Config, trustedUtc, TimeSpan.FromMinutes(10));
         return null;
     }
 
@@ -236,6 +327,21 @@ public sealed class EnforcementSession
         if (!ParentPassword.Verify(password, Config.ParentPassword))
             return "密码不正确";
         return null;
+    }
+
+    private Evaluation IdleEvaluation(ClockSample sample, string seen)
+    {
+        Usage = Usage with { LastSeenGames = seen, GraceActive = false, GraceAnnounced = false, GraceStartedUtc = null, GraceReason = null };
+        var stopped = Config.ProtectionState.Equals(ProtectionControl.Stopped, StringComparison.OrdinalIgnoreCase);
+        return new Evaluation
+        {
+            Kind = DecisionKind.Allowed,
+            Usage = Usage,
+            Phase = stopped ? "stopped" : "paused",
+            ReasonCode = stopped ? "stopped" : "paused",
+            Message = stopped ? "家长已停止保护。要恢复请输入家长密码。" : "家长已暂停保护，到点后会自动恢复。",
+            WindowOpen = true
+        };
     }
 
     private static string? ValidatePasswordChoice(string password)

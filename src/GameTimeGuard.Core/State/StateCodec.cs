@@ -26,6 +26,7 @@ public sealed class UsageDocument
     public long MonotonicMilliseconds { get; set; }
     public string? WallUtc { get; set; }
     public int StoredOffsetMinutes { get; set; }
+    public string LastSeenGames { get; set; } = "";
 }
 
 public static class StateCodec
@@ -47,7 +48,8 @@ public static class StateCodec
             GraceActive = usage.GraceActive,
             GraceAnnounced = usage.GraceAnnounced,
             GraceStartedUtc = usage.GraceStartedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
-            GraceReason = usage.GraceReason
+            GraceReason = usage.GraceReason,
+            LastSeenGames = usage.LastSeenGames
         };
 
         if (clock is { HasSample: true })
@@ -105,7 +107,8 @@ public static class StateCodec
             GraceAnnounced = document.GraceAnnounced,
             GraceStartedUtc = graceStarted,
             GraceReason = document.GraceReason,
-            Sequence = document.Sequence
+            Sequence = document.Sequence,
+            LastSeenGames = document.LastSeenGames ?? ""
         };
 
         if (document.HasClockSample)

@@ -9,12 +9,30 @@ public static class ConfigValidator
         config.GraceSeconds,
         config.EnabledRuleIds);
 
-    public static IReadOnlyList<string> Validate(SettingsUpdate update) => Validate(
-        update.DailyMinutes,
-        update.PlayWindows,
-        update.CustomGames,
-        update.GraceSeconds,
-        update.EnabledRuleIds);
+    public static IReadOnlyList<string> Validate(SettingsUpdate update)
+    {
+        var errors = Validate(
+            update.DailyMinutes,
+            update.PlayWindows,
+            update.CustomGames,
+            update.GraceSeconds,
+            update.EnabledRuleIds).ToList();
+        if (update.GapPenaltyMinutes is < 0 or > 24 * 60)
+            errors.Add("中断罚时必须在 0 到 1440 分钟之间");
+        if (update.GapPolicy is not ("penalty" or "full"))
+            errors.Add("中断记账方式只能是罚时或按整段计算");
+        if (update.EmailEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(update.SmtpHost))
+                errors.Add("要发信就得填写 SMTP 服务器");
+            if (update.SmtpPort is < 1 or > 65535)
+                errors.Add("SMTP 端口不正确");
+            if (string.IsNullOrWhiteSpace(update.NotifyAddress) || !update.NotifyAddress.Contains('@'))
+                errors.Add("收件邮箱看起来不正确");
+        }
+
+        return errors;
+    }
 
     private static IReadOnlyList<string> Validate(
         IReadOnlyList<DayQuota> dailyMinutes,

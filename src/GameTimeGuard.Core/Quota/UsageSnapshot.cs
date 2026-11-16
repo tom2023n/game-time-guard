@@ -17,6 +17,7 @@ public sealed record UsageSnapshot
     public DateTimeOffset? GraceStartedUtc { get; init; }
     public string? GraceReason { get; init; }
     public long Sequence { get; init; }
+    public string LastSeenGames { get; init; } = "";
 
     public static UsageSnapshot Fresh(DateOnly date) => new() { LogicalDate = date };
 

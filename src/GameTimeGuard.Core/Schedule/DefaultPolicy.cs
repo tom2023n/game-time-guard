@@ -70,6 +70,17 @@ public static class DefaultPolicy
             Path = WindowsPath.Normalize(game.Path) ?? ""
         }).ToList();
         config.GraceSeconds = update.GraceSeconds;
+        config.GapPolicy = update.GapPolicy.Equals("full", StringComparison.OrdinalIgnoreCase) ? "full" : "penalty";
+        config.GapPenaltyMinutes = Math.Clamp(update.GapPenaltyMinutes, 0, 24 * 60);
+        config.EmailEnabled = update.EmailEnabled;
+        config.SmtpHost = update.SmtpHost.Trim();
+        config.SmtpPort = update.SmtpPort == 0 ? 587 : update.SmtpPort;
+        config.SmtpUseSsl = update.SmtpUseSsl;
+        config.SmtpUser = update.SmtpUser.Trim();
+        config.NotifyAddress = update.NotifyAddress.Trim();
+        config.NotifyTamper = update.NotifyTamper;
+        config.NotifyTimeUp = update.NotifyTimeUp;
+        config.NotifyDailySummary = update.NotifyDailySummary;
         return config;
     }
 
@@ -83,7 +94,18 @@ public static class DefaultPolicy
             PlayWindows = copy.PlayWindows,
             EnabledRuleIds = copy.EnabledRuleIds,
             CustomGames = copy.CustomGames,
-            GraceSeconds = copy.GraceSeconds
+            GraceSeconds = copy.GraceSeconds,
+            GapPolicy = copy.GapPolicy,
+            GapPenaltyMinutes = copy.GapPenaltyMinutes,
+            EmailEnabled = copy.EmailEnabled,
+            SmtpHost = copy.SmtpHost,
+            SmtpPort = copy.SmtpPort,
+            SmtpUseSsl = copy.SmtpUseSsl,
+            SmtpUser = copy.SmtpUser,
+            NotifyAddress = copy.NotifyAddress,
+            NotifyTamper = copy.NotifyTamper,
+            NotifyTimeUp = copy.NotifyTimeUp,
+            NotifyDailySummary = copy.NotifyDailySummary
         };
     }
 }

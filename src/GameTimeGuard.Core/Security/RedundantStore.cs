@@ -19,55 +19,65 @@ public sealed record StoreRead(StoreStatus Status, string? Payload, long Sequenc
 public static class RedundantStore
 {
     public static StoreRead Read(IBlobStore primary, IBlobStore backup, string name, byte[] key, string expectedKind)
+        => ReadMany([primary, backup], name, key, expectedKind);
+
+    public static StoreRead ReadMany(IReadOnlyList<IBlobStore> stores, string name, byte[] key, string expectedKind)
     {
-        var rawA = primary.Read(name);
-        var rawB = backup.Read(name);
-        if (!rawA.Available && !rawB.Available)
+        if (stores.Count == 0)
             return StoreRead.Unavailable();
 
-        var a = rawA.Available ? Verify(rawA.Content, key, expectedKind) : null;
-        var b = rawB.Available ? Verify(rawB.Content, key, expectedKind) : null;
-        var aGarbage = rawA.Available && rawA.Content is not null && a is null;
-        var bGarbage = rawB.Available && rawB.Content is not null && b is null;
+        var raw = stores.Select(store => store.Read(name)).ToArray();
+        if (raw.All(item => !item.Available))
+            return StoreRead.Unavailable();
 
-        if (a is null && b is null)
-            return aGarbage || bGarbage ? StoreRead.Tampered() : StoreRead.Missing();
+        var verified = raw.Select(item => item.Available ? Verify(item.Content, key, expectedKind) : null).ToArray();
+        var garbage = false;
+        Verified? winner = null;
+        for (var i = 0; i < raw.Length; i++)
+        {
+            if (raw[i].Available && raw[i].Content is not null && verified[i] is null)
+                garbage = true;
+            var candidate = verified[i];
+            if (candidate is null)
+                continue;
+            if (winner is not null && candidate.Value.Sequence == winner.Value.Sequence && candidate.Value.Payload != winner.Value.Payload)
+                return StoreRead.Tampered();
+            if (winner is null || candidate.Value.Sequence > winner.Value.Sequence)
+                winner = candidate;
+        }
 
-        if (a is not null && b is not null && a.Value.Sequence == b.Value.Sequence && a.Value.Payload != b.Value.Payload)
-            return StoreRead.Tampered();
-
-        var winner = a;
-        if (winner is null || (b is not null && b.Value.Sequence > winner.Value.Sequence))
-            winner = b;
+        if (winner is null)
+            return garbage ? StoreRead.Tampered() : StoreRead.Missing();
 
         var restored = false;
-        if (rawA.Available && (a is null || a.Value.Raw != winner!.Value.Raw))
+        for (var i = 0; i < stores.Count; i++)
         {
-            if (primary.TryWrite(name, winner!.Value.Raw, out _))
+            if (!raw[i].Available || verified[i]?.Raw == winner.Value.Raw)
+                continue;
+            if (stores[i].TryWrite(name, winner.Value.Raw, out _))
                 restored = true;
         }
 
-        if (rawB.Available && (b is null || b.Value.Raw != winner!.Value.Raw))
-        {
-            if (backup.TryWrite(name, winner!.Value.Raw, out _))
-                restored = true;
-        }
-
-        return StoreRead.Authentic(winner!.Value.Payload, winner.Value.Sequence, restored);
+        return StoreRead.Authentic(winner.Value.Payload, winner.Value.Sequence, restored);
     }
 
     public static bool WriteBoth(IBlobStore primary, IBlobStore backup, string name, string envelope, out string? error)
+        => WriteMany([primary, backup], name, envelope, out error);
+
+    public static bool WriteMany(IReadOnlyList<IBlobStore> stores, string name, string envelope, out string? error)
     {
-        var primaryOk = primary.TryWrite(name, envelope, out var primaryError);
-        var backupOk = backup.TryWrite(name, envelope, out var backupError);
-        if (primaryOk || backupOk)
+        var wrote = false;
+        string? lastError = null;
+        foreach (var store in stores)
         {
-            error = primaryOk && backupOk ? null : primaryError ?? backupError;
-            return true;
+            if (store.TryWrite(name, envelope, out var storeError))
+                wrote = true;
+            else
+                lastError = storeError;
         }
 
-        error = primaryError ?? backupError ?? "两份记录都写失败了";
-        return false;
+        error = wrote ? null : lastError ?? "记录都写失败了";
+        return wrote;
     }
 
     private static Verified? Verify(string? raw, byte[] key, string expectedKind)
